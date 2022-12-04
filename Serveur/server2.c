@@ -70,7 +70,10 @@ static void app(void)
       /* add socket of each client */
       for(i = 0; i < actual; i++)
       {
-         FD_SET(clients[i].sock, &rdfs);
+         if(clients[i].estConnecte==1)
+         {
+            FD_SET(clients[i].sock, &rdfs);
+         }
       }
 
       if(select(max + 1, &rdfs, NULL, NULL, NULL) == -1)
@@ -125,10 +128,12 @@ static void app(void)
             if(strcmp(clientExistant->password,buffer)!=0)
             {
                write_client(csock, "/!\\/!\\/!\\ Mot de passe incorrect ! \nDéconnexion...");
+               clientExistant->estConnecte = 0;
                closesocket(csock);
             } else{
                clients[i].sock = csock;
                write_client(clientExistant->sock, "----------------- Connexion réussie ! -----------------");
+               clientExistant->estConnecte = 1;
                nb_clients_connectes++;
             }
          }else{
@@ -139,6 +144,7 @@ static void app(void)
             write_client(c.sock, "-----------------> Veuillez entrer un mot de passe :");
             read_client(c.sock, buffer);
             strncpy(c.password, buffer, BUF_SIZE-1);
+            c.estConnecte = 1;
             clients[actual++] = c;
             persister_client(clients+actual-1);     //On utilise le pointeur pour incrémenter du bon nombre de client
             write_client(c.sock, "----------------- Mot de passe enregistré. -----------------\n----------------- Connexion réussie ! -----------------");
@@ -156,7 +162,8 @@ static void app(void)
          for(i = 0; i < actual; i++)
          {
             /* a client is talking */
-            if(FD_ISSET(clients[i].sock, &rdfs))
+            printf("Oui %d\r\n",clients[i].estConnecte);
+            if(clients[i].estConnecte==1 && FD_ISSET(clients[i].sock, &rdfs))
             {
                Client *client = &clients[i];
                int c = read_client(client->sock, buffer);
@@ -295,8 +302,9 @@ static void app(void)
                   /* client disconnected */
                   if(c == 0)
                   {
+                     client->estConnecte = 0;
                      closesocket(clients[i].sock);
-                     remove_client(clients, i, &actual);
+                     nb_clients_connectes--;
                      strncpy(buffer, client->name, BUF_SIZE - 1);
                      strncat(buffer, " disconnected !", BUF_SIZE - strlen(buffer) - 1);
                      nb_clients_connectes--;
@@ -401,8 +409,6 @@ static void clear_clients(Client *clients, int actual)
 
 static void remove_client(Client *client, int to_remove, int *actual)
 {
-   /* we remove the client in the array */
-   client->sock = NULL;
    /* number client - 1 */
    (*actual)--;
    printf("Nombre de client(s) actuellement connecté(s) : %d \r\n\n", *actual);
@@ -637,6 +643,7 @@ static int charger_clients(Client *clients, const char *fichier_clients)
       {
          clients[nbClients].actual_conversation = 0;
          clients[nbClients].conversation_actuelle = NULL;
+         clients[nbClients].estConnecte = 0;
          ptr = strtok(buffer, ";");
          strncpy(clients[nbClients].name, ptr, BUF_SIZE-1);
          ptr = strtok(NULL, "\n");

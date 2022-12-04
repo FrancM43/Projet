@@ -12,6 +12,7 @@ struct Client
    Conversation *conversations[MAX_CONVERSATIONS];
    Conversation *conversation_actuelle;
    int actual_conversation;
+   int estConnecte;
 };
 
 #endif /* guard */
