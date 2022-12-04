@@ -39,6 +39,7 @@ static void app(void)
    int max = sock;
    /* an array for all clients */
    Client clients[MAX_CLIENTS];
+   /* Un tableau pour toutes les conversations */
    Conversation conversations[MAX_CONVERSATIONS];
    int i;
 
@@ -54,17 +55,6 @@ static void app(void)
    }
    
    printf("Nombre de clients chargés : %d \n", actual);
-   //afficher_clients(clients, actual);
-   //charger_conversations(clients, actual, "conversations.txt");
-
-   //charger_participants(clients,"new_participants.txt",actual,"new",1);
-   /*
-   //charger_conversations(clients, actual, "conversations.txt");
-   charger_participants(clients, "new_participants.txt", actual, "new");
-   int num_client = 2;
-   int nb_conv = 1;
-   charger_historique("new", clients, "new_historique.txt", nb_conv, num_client);
-   */
 
    while(1)
    {
@@ -121,22 +111,24 @@ static void app(void)
          FD_SET(csock, &rdfs);
 
          i=0;
-         while(i<actual && strcmp(clients[i++].name,buffer)!=0);
-         if(--i>=0 && strcmp(clients[i].name,buffer)==0)
+         /* 
+          * Gestion de la connection d'un client, on vérifie s'il existe.
+          * Le cas échéant, son mot de passe est vérifié
+          * Sinon, l'utilisateur entre un mot de passe
+         */
+         Client *clientExistant;
+         clientExistant = recupererClientParNom(clients, actual, buffer);
+         if(clientExistant!=NULL)
          {
             write_client(csock, "-----------------> Veuillez entrer votre mot de passe :");
             read_client(csock, buffer);
-            if(strcmp(clients[i].password,buffer)!=0)
+            if(strcmp(clientExistant->password,buffer)!=0)
             {
                write_client(csock, "/!\\/!\\/!\\ Mot de passe incorrect ! \nDéconnexion...");
                closesocket(csock);
             } else{
                clients[i].sock = csock;
-               write_client(clients[i].sock, "----------------- Connexion réussie ! -----------------");
-               sprintf(message, "\n----------------- Vous êtes actuellement connecté au groupe  %s ! -----------------\n", clients[i].conversation_actuelle->nom);
-               write_client(clients[i].sock, message);
-               Client *clientTest = &clients[i];
-               //afficher_historique_conversation(clientTest);
+               write_client(clientExistant->sock, "----------------- Connexion réussie ! -----------------");
                nb_clients_connectes++;
             }
          }else{
@@ -166,12 +158,10 @@ static void app(void)
             /* a client is talking */
             if(FD_ISSET(clients[i].sock, &rdfs))
             {
-               Client *client = clients+i;
-               /*afficher_client(client);*/
-               //memset(buffer, 0, BUF_SIZE);
-               int c = read_client(clients[i].sock, buffer);
+               Client *client = &clients[i];
+               int c = read_client(client->sock, buffer);
 
-               //On écoute les commandes
+               //On écoute les commandes, celles-ci commencent par un '/'
                if (buffer[0] == '/')
                {
                   char *commande = strtok(buffer, " ");
@@ -363,7 +353,7 @@ int findConversation(Client *clients, char *param, int i){
 Client * recupererClientParNom(Client *clients, int nb_clients, const char *nomClient)
 {
    int i = 0;
-   while(i < nb_clients && strcmp(clients[i++].name,nomClient));
+   while(i < nb_clients && strcmp(clients[i++].name,nomClient)!=0);
    if(strcmp(clients[--i].name,nomClient) == 0)
    {
       return &clients[i];
