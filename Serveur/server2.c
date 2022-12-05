@@ -131,7 +131,7 @@ static void app(void)
                clientExistant->estConnecte = 0;
                closesocket(csock);
             } else{
-               clients[i].sock = csock;
+               clientExistant->sock = csock;
                write_client(clientExistant->sock, "----------------- Connexion réussie ! -----------------");
                clientExistant->estConnecte = 1;
                nb_clients_connectes++;
@@ -162,7 +162,6 @@ static void app(void)
          for(i = 0; i < actual; i++)
          {
             /* a client is talking */
-            printf("Oui %d\r\n",clients[i].estConnecte);
             if(clients[i].estConnecte==1 && FD_ISSET(clients[i].sock, &rdfs))
             {
                Client *client = &clients[i];
@@ -216,13 +215,8 @@ static void app(void)
                      }
                      else
                      {
-                        printf("-----------Début de join, le nom de la conversation actuelle du client %s est %s\n",client->name, client->conversation_actuelle->nom);
                         i=0;
-                        while(i < client->actual_conversation && strcmp(client->conversations[i++]->nom,param)!= 0)
-                        {
-                           //On entre jamais dans cette boucle !
-                           printf("Conversation %d : %s     Objectif : %s     Resultat : %d\r\n", i-1, client->conversations[i-1]->nom, param, strcmp(client->conversations[i-1]->nom,param));
-                        }
+                        while(i < client->actual_conversation && strcmp(client->conversations[i++]->nom,param)!= 0);
                         if(--i >= 0 && strcmp(client->conversations[i]->nom,param) == 0)
                         {
                            sprintf(message, "\n----------------- Vous avez bien rejoint le groupe %s ! -----------------\n----------------- Historique de la conversation : \n", param);
@@ -307,7 +301,6 @@ static void app(void)
                      nb_clients_connectes--;
                      strncpy(buffer, client->name, BUF_SIZE - 1);
                      strncat(buffer, " disconnected !", BUF_SIZE - strlen(buffer) - 1);
-                     nb_clients_connectes--;
                      if(client->conversation_actuelle!=NULL)
                      {
                         send_message_to_conversation(clients, *client, actual, buffer, 1);
@@ -319,14 +312,11 @@ static void app(void)
                      //send_message_to_all_clients(clients, *client, actual, buffer, 0);
                      if(client->conversation_actuelle!=NULL)
                      {
-                        //debug
-                        // printf("nb de clients : %d\n", actual);
-                        // printf("le nom du client : %s\n", client->name);
                         send_message_to_conversation(clients, *client, actual, buffer, 0);
                      }
                   }
-                  break;
                }
+               break;
             }
          }
       }
@@ -409,6 +399,7 @@ static void clear_clients(Client *clients, int actual)
 
 static void remove_client(Client *client, int to_remove, int *actual)
 {
+   client->sock = 0;
    /* number client - 1 */
    (*actual)--;
    printf("Nombre de client(s) actuellement connecté(s) : %d \r\n\n", *actual);
@@ -441,18 +432,9 @@ static void send_message_to_conversation(Client *clients, Client sender, int act
    char message[BUF_SIZE];
    message[0] = 0;
 
-   //debug
-   // printf("le nom du client : %s\n", sender.name);
-   // printf("contenue du buffer : %s\n", buffer);
-   // printf("actual : %d\n", actual);
-   // printf("from_server : %d\n", from_server);
-
    //Ajout du message à l'historique
    Historique* nouveau_historique = (Historique*) malloc(sizeof(Historique));
    strncpy(nouveau_historique->expediteur, sender.name, BUF_SIZE-1);
-
-   //debug 
-   //printf("le nom de l'expediteur : %s\n", nouveau_historique->expediteur);
 
    strncpy(nouveau_historique->message, buffer, BUF_SIZE - 1);
    nouveau_historique->message_suivant = NULL;
@@ -467,21 +449,11 @@ static void send_message_to_conversation(Client *clients, Client sender, int act
    }
    afficher_historique(sender.conversation_actuelle);
 
-   //debug
-   // printf("le nom de la conversation est : %s\n", sender.conversation_actuelle->nom);
-   // printf("actual = %d\n", actual);
-   // printf("buffer = %s\n", buffer);
-   // printf("from_server = %d\n", from_server);
-   // printf("historique : %s\n", nouveau_historique->expediteur);
 
    persister_historique(sender.conversation_actuelle->nom, nouveau_historique);
    
    for(i = 0; i < actual; i++)
    {
-      //debug 
-      // printf("la socket du client : %d\n", clients[i].sock);
-      // printf("la socket du sender : %d\n", sender.sock);
-      // printf("nombre de client : %d\n", actual);
 
       /* we don't send message to the sender */
       if(sender.sock != clients[i].sock && sender.conversation_actuelle == clients[i].conversation_actuelle && clients[i].sock != 0)
@@ -651,7 +623,6 @@ static int charger_clients(Client *clients, const char *fichier_clients)
 
          //Initialisation du socket
          clients[nbClients].sock = 0;
-         //printf("oui\r\n");
          nbClients++;
 
          fgets(buffer, BUF_SIZE-1, fichier);
@@ -828,8 +799,6 @@ static void persister_historique(const char* nom_conversation, Historique *histo
    FILE* fichier = fopen(buffer, "a");
 
    //Mise en forme des données à stocker pour chaque message (historique)
-   printf("juste ici\n" );
-   printf("historique expéditeur : %s\n", historique->expediteur);
 
    strncpy(buffer, historique->expediteur, BUF_SIZE-1);
    strncat(buffer, ";", BUF_SIZE-1);
